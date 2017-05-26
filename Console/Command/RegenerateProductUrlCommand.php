@@ -117,12 +117,15 @@ class RegenerateProductUrlCommand extends Command
         ]);
 
         try {
-            $this->urlPersist->replace(
-                $this->productUrlRewriteGenerator->generate($product)
-            );
+            if($product->isVisibleInSiteVisibility()) {
+                $this->urlPersist->replace(
+                    $this->productUrlRewriteGenerator->generate($product)
+                );
+            }
         }
         catch(\Exception $e) {
             $this->output->writeln('<error>Duplicated url for '. $product->getId() .'</error>');
+            $this->output->writeln($e->getMessage());
         }
     }
 

@@ -11,6 +11,9 @@
             <argument name="commands" xsi:type="array">
                 <item name="product_url_regeneration_command" xsi:type="object">Experius\ReindexCatalogUrlRewrites\Console\Command\RegenerateProductUrlCommand</item>
             </argument>
+            <argument name="commands" xsi:type="array">
+                <item name="category_url_regeneration_command" xsi:type="object">Experius\ReindexCatalogUrlRewrites\Console\Command\RegenerateCategoryUrlCommand</item>
+            </argument>
         </arguments>
     </type>
 </config>
