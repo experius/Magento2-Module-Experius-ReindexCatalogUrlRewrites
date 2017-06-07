@@ -36,6 +36,8 @@ class RegenerateProductUrlCommand extends Command
      */
     protected $storeManager;
 
+    protected $urlPathGenerator;
+
     protected $productIds = null;
 
     protected $storeIds = [];
@@ -44,16 +46,18 @@ class RegenerateProductUrlCommand extends Command
 
     public function __construct(
         \Magento\Framework\App\State $state,
-        \Magento\Catalog\Model\ResourceModel\Product\Collection $collection,
+        \Magento\Catalog\Model\ResourceModel\Product\CollectionFactory $collection,
         \Magento\CatalogUrlRewrite\Model\ProductUrlRewriteGenerator $productUrlRewriteGenerator,
         \Magento\UrlRewrite\Model\UrlPersistInterface $urlPersist,
-        \Magento\Store\Model\StoreManagerInterface $storeManager
+        \Magento\Store\Model\StoreManagerInterface $storeManager,
+        \Magento\CatalogUrlRewrite\Model\ProductUrlPathGenerator $urlPathGenerator
     ) {
         $this->state = $state;
         $this->collection = $collection;
         $this->productUrlRewriteGenerator = $productUrlRewriteGenerator;
         $this->urlPersist = $urlPersist;
         $this->storeManager = $storeManager;
+        $this->urlPathGenerator = $urlPathGenerator;
         parent::__construct();
     }
 
@@ -76,8 +80,11 @@ class RegenerateProductUrlCommand extends Command
 
     public function execute(InputInterface $inp, OutputInterface $out)
     {
-        if(!$this->state->getAreaCode()) {
+
+        try {
             $this->state->setAreaCode('adminhtml');
+        } catch (\Magento\Framework\Exception\LocalizedException $e) {
+            // intentionally left empty
         }
 
         $this->output = $out;
@@ -107,6 +114,7 @@ class RegenerateProductUrlCommand extends Command
 
         $product->setStoreId($storeId);
 
+        //$product->setUrlKey($this->urlPathGenerator->getUrlKey($product));
         $this->output->writeln(sprintf('Update Url For Product %s StoreId %s',$product->getSku(),$storeId));
 
         $this->urlPersist->deleteByData([
@@ -118,10 +126,17 @@ class RegenerateProductUrlCommand extends Command
 
         try {
             if($product->isVisibleInSiteVisibility()) {
+		$productUrls = $this->productUrlRewriteGenerator->generate($product);
+
+	            //foreach($productUrls as $productUrl){
+	            //    echo $productUrl->getRequestPath() . "\n";
+	            //}
                 $this->urlPersist->replace(
-                    $this->productUrlRewriteGenerator->generate($product)
+                    productUrls
                 );
             }
+            
+	    //$product->save();
         }
         catch(\Exception $e) {
             $this->output->writeln('<error>Duplicated url for '. $product->getId() .'</error>');
@@ -131,15 +146,20 @@ class RegenerateProductUrlCommand extends Command
 
     protected function getProductCollection($storeId){
 
-        $this->collection->addStoreFilter($storeId)->setStoreId($storeId);
+        /* @var $collection \Magento\Catalog\Model\ResourceModel\Product\Collection */
+
+        $collection = $this->collection->create();
+
+        $collection->addStoreFilter($storeId);
+        $collection->setStoreId($storeId);
 
         if(!empty($this->productIds)) {
-            $this->collection->addIdFilter($this->productIds);
+            $collection->addIdFilter($this->productIds);
         }
 
-        $this->collection->addAttributeToSelect(['url_path', 'url_key']);
+        $collection->addAttributeToSelect(['url_path', 'url_key','name']);
 
-        return  $this->collection->load();
+        return  $collection->load();
     }
 
     protected function getStoreIds(){

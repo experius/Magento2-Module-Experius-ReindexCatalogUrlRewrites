@@ -40,7 +40,7 @@ class RegenerateCategoryUrlCommand extends Command
 
     public function __construct(
         \Magento\Framework\App\State $state,
-        \Magento\Catalog\Model\ResourceModel\Category\Collection $collection,
+        \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $collection,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Framework\Event\Manager $eventManager,
         \Magento\Store\Model\App\Emulation $appEmulation,
@@ -83,8 +83,11 @@ class RegenerateCategoryUrlCommand extends Command
 
     public function execute(InputInterface $inp, OutputInterface $out)
     {
-        if(!$this->state->getAreaCode()) {
+
+	try {
             $this->state->setAreaCode('frontend');
+        } catch (\Magento\Framework\Exception\LocalizedException $e) {
+            // intentionally left empty
         }
 
         $this->output = $out;
@@ -155,16 +158,17 @@ class RegenerateCategoryUrlCommand extends Command
 
     protected function getCategoryCollection($storeId){
 
-        $this->collection->setStoreId($storeId);
+        $collection = $this->collection->create();
+	$collection->setStoreId($storeId);
 
         if(!empty($this->categoryIds)) {
-            $this->collection->addIdFilter($this->categoryIds);
+            $collection->addIdFilter($this->categoryIds);
         }
 
-        //$this->collection->addUrlRewriteToResult();
-        $this->collection->addAttributeToSelect('name');
+        //$collection->addUrlRewriteToResult();
+        $collection->addAttributeToSelect('name');
 
-        return  $this->collection->load();
+        return  $collection->load();
     }
 
     protected function getStoreIds(){
