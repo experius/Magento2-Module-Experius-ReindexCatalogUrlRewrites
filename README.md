@@ -5,6 +5,11 @@
 
 **Usage**
 
+All Categories, All Products, All Storeviews
+```php bin/magento experius_reindexcatalogurlrewrites:categoryurls```
+
+Specific Products, Specific Store Ids
+
 ```php bin/magento experius_reindexcatalogurlrewrites:producturls --product_ids=36,37 --store_ids=1```
 
 All Products, All Storeviews
