@@ -14,30 +14,81 @@ use Magento\Store\Model\ScopeInterface;
 class RegenerateCategoryUrlCommand extends Command
 {
 
+    const STORE_OPTION = "store_ids";
+    const CATEGORY_OPTION = "category_ids";
+    
+    /**
+     * @var \Magento\UrlRewrite\Model\UrlPersistInterface
+     */
     protected $urlPersist;
 
+    /**
+     * @var \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory
+     */
     protected $collection;
 
+    /**
+     * @var \Magento\Framework\App\State
+     */
     protected $state;
 
+    /**
+     * @var \Magento\Store\Model\StoreManagerInterface
+     */
     protected $storeManager;
 
+    /**
+     * @var null
+     */
     protected $categoryIds = null;
 
+    /**
+     * @var array
+     */
     protected $storeIds = [];
 
+    /**
+     * @var null
+     */
     protected $output = null;
 
+    /**
+     * @var \Magento\Framework\Event\Manager
+     */
     protected $eventManager;
 
-    protected $_appEmulation;
+    /**
+     * @var \Magento\Store\Model\App\Emulation
+     */
+    protected $appEmulation;
 
+    /**
+     * @var \Magento\CatalogUrlRewrite\Model\CategoryUrlRewriteGenerator
+     */
     protected $categoryUrlRewriteGenerator;
 
+    /**
+     * @var \Magento\Framework\App\Config\ScopeConfigInterface
+     */
     protected $scopeConfig;
 
+    /**
+     * @var \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler
+     */
     protected $urlRewriteHandler;
 
+    /**
+     * RegenerateCategoryUrlCommand constructor.
+     * @param \Magento\Framework\App\State $state
+     * @param \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $collection
+     * @param \Magento\Store\Model\StoreManagerInterface $storeManager
+     * @param \Magento\Framework\Event\Manager $eventManager
+     * @param \Magento\Store\Model\App\Emulation $appEmulation
+     * @param \Magento\UrlRewrite\Model\UrlPersistInterface $urlPersist
+     * @param \Magento\CatalogUrlRewrite\Model\CategoryUrlRewriteGenerator $categoryUrlRewriteGenerator
+     * @param \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
+     * @param \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler $urlRewriteHandler
+     */
     public function __construct(
         \Magento\Framework\App\State $state,
         \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $collection,
@@ -54,7 +105,7 @@ class RegenerateCategoryUrlCommand extends Command
         $this->collection = $collection;
         $this->storeManager = $storeManager;
         $this->eventManager = $eventManager;
-        $this->_appEmulation = $appEmulation;
+        $this->appEmulation = $appEmulation;
         $this->urlPersist = $urlPersist;
         $this->categoryUrlRewriteGenerator = $categoryUrlRewriteGenerator;
         $this->scopeConfig = $scopeConfig;
@@ -64,16 +115,19 @@ class RegenerateCategoryUrlCommand extends Command
 
     }
 
+    /**
+     *  Define the Console Command with Options
+     */
     protected function configure()
     {
         $this->setName('experius_reindexcatalogurlrewrites:categoryurls')
             ->setDescription('Regenerate url for given categories')
             ->addOption(
-                'store_ids','s',
+                self::STORE_OPTION,'s',
                 InputOption::VALUE_OPTIONAL,
                 'Use the specific Store View'
             )->addOption(
-                'category_ids','c',
+                self::CATEGORY_OPTION,'c',
                 InputOption::VALUE_OPTIONAL,
                 'Use the specific Store View'
             );
@@ -81,37 +135,45 @@ class RegenerateCategoryUrlCommand extends Command
         return parent::configure();
     }
 
-    public function execute(InputInterface $inp, OutputInterface $out)
+    /**
+     * @param InputInterface $input
+     * @param OutputInterface $output
+     */
+    public function execute(InputInterface $input, OutputInterface $output)
     {
 
-	try {
+	    try {
             $this->state->setAreaCode('frontend');
         } catch (\Magento\Framework\Exception\LocalizedException $e) {
             // intentionally left empty
         }
 
-        $this->output = $out;
+        $this->output = $output;
 
-        if($inp->hasOption('category_ids') && $inp->getOption('category_ids')){
-            $this->categoryIds = explode(',',$inp->getOption('category_ids'));
+        if($input->hasOption(self::CATEGORY_OPTION) && $input->getOption(self::CATEGORY_OPTION)){
+            $this->categoryIds = explode(',',$input->getOption(self::CATEGORY_OPTION));
         }
 
-        if($inp->hasOption('store_ids') && $inp->getOption('store_ids')){
-            $this->storeIds = explode(',',$inp->getOption('store_ids'));
+        if($input->hasOption(self::STORE_OPTION) && $input->getOption(self::STORE_OPTION)){
+            $this->storeIds = explode(',',$input->getOption(self::STORE_OPTION));
         }
 
         foreach($this->getStoreIds() as $storeId){
 
-            $this->_appEmulation->startEnvironmentEmulation($storeId);
+            $this->appEmulation->startEnvironmentEmulation($storeId);
 
             $list = $this->getCategoryCollection($storeId);
-            $this->updateCatalogProductUrlRewriteCollection($list,$storeId);
+            $this->updateCatalogCategoryUrlRewriteCollection($list,$storeId);
 
-            $this->_appEmulation->stopEnvironmentEmulation();
+            $this->appEmulation->stopEnvironmentEmulation();
         }
     }
 
-    protected function updateCatalogProductUrlRewriteCollection($collection,$storeId){
+    /**
+     * @param $collection
+     * @param $storeId
+     */
+    protected function updateCatalogCategoryUrlRewriteCollection($collection,$storeId){
         foreach($collection as $category) {
             if ($category->getParentId() == Category::TREE_ROOT_ID) {
                 continue;
@@ -125,6 +187,10 @@ class RegenerateCategoryUrlCommand extends Command
         }
     }
 
+    /**
+     * @param $category
+     * @param $storeId
+     */
     protected function updateCatalogCategoryUrlRewrite($category,$storeId=Store::DEFAULT_STORE_ID){
 
         $category->setStoreId($storeId);
@@ -150,16 +216,20 @@ class RegenerateCategoryUrlCommand extends Command
             $this->urlPersist->replace($urlRewrites);
         }
         catch(\Exception $e) {
-            $this->output->writeln('<error>Duplicated url for '. $product->getId() .'</error>');
+            $this->output->writeln('<error>Duplicated url for '. $category->getId() .'</error>');
             $this->output->writeln($e->getMessage());
         }
     }
 
 
+    /**
+     * @param $storeId
+     * @return mixed
+     */
     protected function getCategoryCollection($storeId){
 
         $collection = $this->collection->create();
-	$collection->setStoreId($storeId);
+    	$collection->setStoreId($storeId);
 
         if(!empty($this->categoryIds)) {
             $collection->addIdFilter($this->categoryIds);
@@ -171,6 +241,9 @@ class RegenerateCategoryUrlCommand extends Command
         return  $collection->load();
     }
 
+    /**
+     * @return array
+     */
     protected function getStoreIds(){
 
         if(!empty($this->storeIds)){
