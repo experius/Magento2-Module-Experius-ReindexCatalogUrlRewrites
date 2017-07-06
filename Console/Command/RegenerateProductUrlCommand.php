@@ -173,7 +173,7 @@ class RegenerateProductUrlCommand extends Command
 	            //    echo $productUrl->getRequestPath() . "\n";
 	            //}
                 $this->urlPersist->replace(
-                    productUrls
+                    $productUrls
                 );
             }
             
@@ -202,7 +202,7 @@ class RegenerateProductUrlCommand extends Command
             $collection->addIdFilter($this->productIds);
         }
 
-        $collection->addAttributeToSelect(['url_path', 'url_key','name']);
+        $collection->addAttributeToSelect(['url_path', 'url_key', 'name', 'visibility']);
 
         return  $collection->load();
     }
