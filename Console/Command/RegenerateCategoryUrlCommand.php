@@ -10,13 +10,15 @@ use Magento\Catalog\Model\Category;
 
 use Magento\CatalogUrlRewrite\Block\UrlKeyRenderer;
 use Magento\Store\Model\ScopeInterface;
+use Magento\CatalogUrlRewrite\Model\CategoryUrlPathGenerator;
+
 
 class RegenerateCategoryUrlCommand extends Command
 {
 
     const STORE_OPTION = "store_ids";
     const CATEGORY_OPTION = "category_ids";
-    
+
     /**
      * @var \Magento\UrlRewrite\Model\UrlPersistInterface
      */
@@ -77,6 +79,9 @@ class RegenerateCategoryUrlCommand extends Command
      */
     protected $urlRewriteHandler;
 
+    /** @var CategoryUrlPathGenerator */
+    protected $categoryUrlPathGenerator;
+
     /**
      * RegenerateCategoryUrlCommand constructor.
      * @param \Magento\Framework\App\State $state
@@ -88,6 +93,7 @@ class RegenerateCategoryUrlCommand extends Command
      * @param \Magento\CatalogUrlRewrite\Model\CategoryUrlRewriteGenerator $categoryUrlRewriteGenerator
      * @param \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
      * @param \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler $urlRewriteHandler
+     * @param CategoryUrlPathGenerator $categoryUrlPathGenerator
      */
     public function __construct(
         \Magento\Framework\App\State $state,
@@ -98,7 +104,8 @@ class RegenerateCategoryUrlCommand extends Command
         \Magento\UrlRewrite\Model\UrlPersistInterface $urlPersist,
         \Magento\CatalogUrlRewrite\Model\CategoryUrlRewriteGenerator $categoryUrlRewriteGenerator,
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
-        \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler $urlRewriteHandler
+        \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler $urlRewriteHandler,
+        CategoryUrlPathGenerator $categoryUrlPathGenerator
     ) {
 
         $this->state = $state;
@@ -110,6 +117,7 @@ class RegenerateCategoryUrlCommand extends Command
         $this->categoryUrlRewriteGenerator = $categoryUrlRewriteGenerator;
         $this->scopeConfig = $scopeConfig;
         $this->urlRewriteHandler = $urlRewriteHandler;
+        $this->categoryUrlPathGenerator = $categoryUrlPathGenerator;
 
         parent::__construct();
 
@@ -142,7 +150,7 @@ class RegenerateCategoryUrlCommand extends Command
     public function execute(InputInterface $input, OutputInterface $output)
     {
 
-	    try {
+        try {
             $this->state->setAreaCode('frontend');
         } catch (\Magento\Framework\Exception\LocalizedException $e) {
             // intentionally left empty
@@ -163,11 +171,35 @@ class RegenerateCategoryUrlCommand extends Command
             $this->appEmulation->startEnvironmentEmulation($storeId);
 
             $list = $this->getCategoryCollection($storeId);
+            $this->updateCatalogCategoryUrlPathCollection($list,$storeId);
             $this->updateCatalogCategoryUrlRewriteCollection($list,$storeId);
 
             $this->appEmulation->stopEnvironmentEmulation();
         }
     }
+
+    /**
+     * @param $collection
+     * @param $storeId
+     */
+    protected function updateCatalogCategoryUrlPathCollection($collection,$storeId){
+        foreach ($collection as $category) {
+            $category->setStoreId($storeId);
+            $this->updateUrlPathForCategory($category);
+        }
+    }
+
+    /**
+     * @param Category $category
+     * @return void
+     */
+    protected function updateUrlPathForCategory(Category $category)
+    {
+        $category->unsUrlPath();
+        $category->setUrlPath($this->categoryUrlPathGenerator->getUrlPath($category));
+        $category->getResource()->saveAttribute($category, 'url_path');
+    }
+
 
     /**
      * @param $collection
@@ -229,7 +261,7 @@ class RegenerateCategoryUrlCommand extends Command
     protected function getCategoryCollection($storeId){
 
         $collection = $this->collection->create();
-    	$collection->setStoreId($storeId);
+        $collection->setStoreId($storeId);
 
         if(!empty($this->categoryIds)) {
             $collection->addIdFilter($this->categoryIds);
@@ -237,6 +269,7 @@ class RegenerateCategoryUrlCommand extends Command
 
         //$collection->addUrlRewriteToResult();
         $collection->addAttributeToSelect('name');
+        $collection->addAttributeToSelect('url_key');
 
         return  $collection->load();
     }
