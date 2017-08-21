@@ -7,6 +7,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Magento\Catalog\Model\Category;
+use Magento\Catalog\Model\Indexer\Category\Flat\State as CategoryIndexer;
 
 use Magento\CatalogUrlRewrite\Block\UrlKeyRenderer;
 use Magento\Store\Model\ScopeInterface;
@@ -83,6 +84,16 @@ class RegenerateCategoryUrlCommand extends Command
     protected $categoryUrlPathGenerator;
 
     /**
+     * @var CategoryIndexer
+     */
+    protected $flatState;
+
+    /**
+     * @var \Magento\Framework\Indexer\IndexerRegistry
+     */
+    protected $indexerRegistry;
+
+    /**
      * RegenerateCategoryUrlCommand constructor.
      * @param \Magento\Framework\App\State $state
      * @param \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $collection
@@ -94,6 +105,8 @@ class RegenerateCategoryUrlCommand extends Command
      * @param \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
      * @param \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler $urlRewriteHandler
      * @param CategoryUrlPathGenerator $categoryUrlPathGenerator
+     * @param CategoryIndexer $flatState
+     * @param \Magento\Framework\Indexer\IndexerRegistry $indexerRegistry
      */
     public function __construct(
         \Magento\Framework\App\State $state,
@@ -105,7 +118,9 @@ class RegenerateCategoryUrlCommand extends Command
         \Magento\CatalogUrlRewrite\Model\CategoryUrlRewriteGenerator $categoryUrlRewriteGenerator,
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
         \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler $urlRewriteHandler,
-        CategoryUrlPathGenerator $categoryUrlPathGenerator
+        CategoryUrlPathGenerator $categoryUrlPathGenerator,
+        CategoryIndexer $flatState,
+        \Magento\Framework\Indexer\IndexerRegistry $indexerRegistry
     ) {
 
         $this->state = $state;
@@ -118,6 +133,9 @@ class RegenerateCategoryUrlCommand extends Command
         $this->scopeConfig = $scopeConfig;
         $this->urlRewriteHandler = $urlRewriteHandler;
         $this->categoryUrlPathGenerator = $categoryUrlPathGenerator;
+        $this->flatState = $flatState;
+        $this->indexerRegistry = $indexerRegistry;
+
 
         parent::__construct();
 
@@ -173,6 +191,7 @@ class RegenerateCategoryUrlCommand extends Command
             $list = $this->getCategoryCollection($storeId);
             $this->updateCatalogCategoryUrlPathCollection($list,$storeId);
             $this->updateCatalogCategoryUrlRewriteCollection($list,$storeId);
+            $this->updateFlatCategoryIndex($list,$storeId);
 
             $this->appEmulation->stopEnvironmentEmulation();
         }
@@ -213,8 +232,29 @@ class RegenerateCategoryUrlCommand extends Command
 
             $this->updateCatalogCategoryUrlRewrite($category,$storeId);
 
+
+
             if (!$this->categoryIds){
                 return;
+            }
+        }
+    }
+
+    protected function updateFlatCategoryIndex($collection,$storeId) {
+        foreach($collection as $category) {
+            if ($category->getLevel() != 2 || !$category->hasChildren()) {
+                continue;
+            }
+            $this->reindex($category);
+        }
+    }
+
+    protected function reindex($category) {
+        if ($this->flatState->isFlatEnabled()) {
+            $flatIndexer = $this->indexerRegistry->get(CategoryIndexer::INDEXER_ID);
+            if (!$flatIndexer->isScheduled()) {
+                $flatIndexer->reindexRow($category->getId());
+                $flatIndexer->reindexList(explode(',', $category->getAllChildren()));
             }
         }
     }
