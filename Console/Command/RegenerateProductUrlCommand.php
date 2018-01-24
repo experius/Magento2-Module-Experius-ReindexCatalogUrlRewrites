@@ -1,4 +1,24 @@
 <?php
+/**
+ * A Magento 2 module named Experius/ReindexCatalogUrlRewrites
+ * Copyright (C) 2018 Experius
+ *
+ * This file is part of Experius/ReindexCatalogUrlRewrites.
+ *
+ * Experius/ReindexCatalogUrlRewrites is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 namespace Experius\ReindexCatalogUrlRewrites\Console\Command;
 
 use Symfony\Component\Console\Command\Command;
@@ -9,12 +29,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Magento\UrlRewrite\Service\V1\Data\UrlRewrite;
 use Magento\Store\Model\Store;
 
+/**
+ * Class RegenerateProductUrlCommand
+ * @package Experius\ReindexCatalogUrlRewrites\Console\Command
+ */
 class RegenerateProductUrlCommand extends Command
 {
+    const STORE_OPTION = 'store_ids';
+    const PRODUCT_OPTION = 'product_ids';
 
-    const STORE_OPTION = "store_ids";
-    const PRODUCT_OPTION = "product_ids";
-    
     /**
      * @var \Magento\CatalogUrlRewrite\Model\ProductUrlRewriteGenerator
      */
@@ -86,22 +109,22 @@ class RegenerateProductUrlCommand extends Command
         parent::__construct();
     }
 
-
     /**
      *  Define the Console Command with Options
      */
     protected function configure()
     {
         $this->setName('experius_reindexcatalogurlrewrites:producturls')
-            ->setDescription('Regenerate url for given products')
+            ->setDescription('Regenerate url_rewrites for given products / stores')
             ->addOption(
-                self::STORE_OPTION,'s',
+                self::STORE_OPTION, 's',
                 InputOption::VALUE_OPTIONAL,
-                'Use the specific Store View'
-            )->addOption(
-                self::PRODUCT_OPTION,'p',
+                'Supply specific Store ID\'s (comma separated)'
+            )
+            ->addOption(
+                self::PRODUCT_OPTION, 'p',
                 InputOption::VALUE_OPTIONAL,
-                'Use the specific Store View'
+                'Supply specific Product ID\'s (comma separated)'
             );
 
         return parent::configure();
@@ -113,26 +136,25 @@ class RegenerateProductUrlCommand extends Command
      */
     public function execute(InputInterface $input, OutputInterface $output)
     {
-
-        try {
-            $this->state->setAreaCode('adminhtml');
-        } catch (\Magento\Framework\Exception\LocalizedException $e) {
-            // intentionally left empty
-        }
-
         $this->output = $output;
 
-        if($input->hasOption(self::PRODUCT_OPTION) && $input->getOption(self::PRODUCT_OPTION)){
-            $this->productIds = explode(',',$input->getOption(self::PRODUCT_OPTION));
+        try {
+            $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
+        } catch (\Magento\Framework\Exception\LocalizedException $e) {
+            /** Try catch added to prevent "Area is already set" errors */
         }
 
-        if($input->hasOption(self::STORE_OPTION) && $input->getOption(self::STORE_OPTION)){
-            $this->storeIds = explode(',',$input->getOption(self::STORE_OPTION));
+        if ($input->hasOption(self::PRODUCT_OPTION) && $input->getOption(self::PRODUCT_OPTION)) {
+            $this->productIds = explode(',', $input->getOption(self::PRODUCT_OPTION));
         }
 
-        foreach($this->getStoreIds() as $storeId){
+        if ($input->hasOption(self::STORE_OPTION) && $input->getOption(self::STORE_OPTION)) {
+            $this->storeIds = explode(',', $input->getOption(self::STORE_OPTION));
+        }
+
+        foreach ($this->getStoreIds() as $storeId) {
             $list = $this->getProductCollection($storeId);
-            $this->updateCatalogProductUrlRewriteCollection($list,$storeId);
+            $this->updateCatalogProductUrlRewriteCollection($list, $storeId);
         }
     }
 
@@ -140,10 +162,10 @@ class RegenerateProductUrlCommand extends Command
      * @param $collection
      * @param $storeId
      */
-    protected function updateCatalogProductUrlRewriteCollection($collection,$storeId){
-        foreach($collection as $product)
-        {
-            $this->updateCatalogProductUrlRewrite($product,$storeId);
+    protected function updateCatalogProductUrlRewriteCollection($collection, $storeId)
+    {
+        foreach ($collection as $product) {
+            $this->updateCatalogProductUrlRewrite($product, $storeId);
         }
     }
 
@@ -151,37 +173,41 @@ class RegenerateProductUrlCommand extends Command
      * @param $product
      * @param int $storeId
      */
-    protected function updateCatalogProductUrlRewrite($product,$storeId=Store::DEFAULT_STORE_ID){
-
-        $product->setStoreId($storeId);
-
-        //$product->setUrlKey($this->urlPathGenerator->getUrlKey($product));
-        $this->output->writeln(sprintf('Update Url For Product %s StoreId %s',$product->getSku(),$storeId));
-
-        $this->urlPersist->deleteByData([
-            UrlRewrite::ENTITY_ID => $product->getId(),
-            UrlRewrite::ENTITY_TYPE => $this->productUrlRewriteGenerator::ENTITY_TYPE,
-            UrlRewrite::REDIRECT_TYPE => 0,
-            UrlRewrite::STORE_ID => $storeId
-        ]);
-
+    protected function updateCatalogProductUrlRewrite($product, $storeId = Store::DEFAULT_STORE_ID)
+    {
         try {
-            if($product->isVisibleInSiteVisibility()) {
-		$productUrls = $this->productUrlRewriteGenerator->generate($product);
+            $product->setStoreId($storeId);
 
-	            //foreach($productUrls as $productUrl){
-	            //    echo $productUrl->getRequestPath() . "\n";
-	            //}
+            $this->output->writeln(sprintf(
+                'Updating product entity_id = <info>%s</info> store_id = <info>%s</info> "%s" (%s)',
+                $product->getId(),
+                $storeId,
+                $product->getName(),
+                $product->getSku()
+            ));
+
+            $this->urlPersist->deleteByData([
+                UrlRewrite::ENTITY_ID => $product->getId(),
+                UrlRewrite::ENTITY_TYPE => $this->productUrlRewriteGenerator::ENTITY_TYPE,
+                UrlRewrite::REDIRECT_TYPE => 0,
+                UrlRewrite::STORE_ID => $storeId
+            ]);
+
+            if ($product->isVisibleInSiteVisibility()) {
+                $productUrls = $this->productUrlRewriteGenerator->generate($product);
+                $i = 0;
+                foreach ($productUrls as $productUrl) {
+                    $i++;
+                    $this->output->writeln('  ' . $productUrl->getRequestPath() . ' -> ' . $productUrl->getTargetPath());
+                }
+                $this->output->writeln('');
                 $this->urlPersist->replace(
                     $productUrls
                 );
             }
-            
-	    //$product->save();
-        }
-        catch(\Exception $e) {
-            $this->output->writeln('<error>Duplicated url for '. $product->getId() .'</error>');
-            $this->output->writeln($e->getMessage());
+        } catch (\Exception $e) {
+            $this->output->writeln('<error>An error occurred while updating url_rewrite for product ID: ' . $product->getId() . '</error>');
+            $this->output->writeln('<error>' . $e->getMessage() . '</error>');
         }
     }
 
@@ -189,35 +215,34 @@ class RegenerateProductUrlCommand extends Command
      * @param $storeId
      * @return $this
      */
-    protected function getProductCollection($storeId){
-
+    protected function getProductCollection($storeId)
+    {
         /* @var $collection \Magento\Catalog\Model\ResourceModel\Product\Collection */
-
         $collection = $this->collection->create();
 
         $collection->addStoreFilter($storeId);
         $collection->setStoreId($storeId);
 
-        if(!empty($this->productIds)) {
+        if (!empty($this->productIds)) {
             $collection->addIdFilter($this->productIds);
         }
 
         $collection->addAttributeToSelect(['url_path', 'url_key', 'name', 'visibility']);
 
-        return  $collection->load();
+        return $collection->load();
     }
 
     /**
      * @return array
      */
-    protected function getStoreIds(){
-
-        if(!empty($this->storeIds)){
+    protected function getStoreIds()
+    {
+        if (!empty($this->storeIds)) {
             return $this->storeIds;
         }
 
         $storeIds = [];
-        foreach($this->storeManager->getStores() as $store){
+        foreach ($this->storeManager->getStores() as $store) {
             $storeIds[] = $store->getId();
         }
 
