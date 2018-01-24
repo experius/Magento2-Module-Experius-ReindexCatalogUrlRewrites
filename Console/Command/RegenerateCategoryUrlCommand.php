@@ -1,4 +1,24 @@
 <?php
+/**
+ * A Magento 2 module named Experius/ReindexCatalogUrlRewrites
+ * Copyright (C) 2018 Experius
+ *
+ * This file is part of Experius/ReindexCatalogUrlRewrites.
+ *
+ * Experius/ReindexCatalogUrlRewrites is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 namespace Experius\ReindexCatalogUrlRewrites\Console\Command;
 
 use Symfony\Component\Console\Command\Command;
@@ -8,17 +28,18 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Magento\Catalog\Model\Category;
 use Magento\Catalog\Model\Indexer\Category\Flat\State as CategoryIndexer;
-
 use Magento\CatalogUrlRewrite\Block\UrlKeyRenderer;
 use Magento\Store\Model\ScopeInterface;
 use Magento\CatalogUrlRewrite\Model\CategoryUrlPathGenerator;
 
-
+/**
+ * Class RegenerateCategoryUrlCommand
+ * @package Experius\ReindexCatalogUrlRewrites\Console\Command
+ */
 class RegenerateCategoryUrlCommand extends Command
 {
-
-    const STORE_OPTION = "store_ids";
-    const CATEGORY_OPTION = "category_ids";
+    const STORE_OPTION = 'store_ids';
+    const CATEGORY_OPTION = 'category_ids';
 
     /**
      * @var \Magento\UrlRewrite\Model\UrlPersistInterface
@@ -135,8 +156,6 @@ class RegenerateCategoryUrlCommand extends Command
         $this->categoryUrlPathGenerator = $categoryUrlPathGenerator;
         $this->flatState = $flatState;
         $this->indexerRegistry = $indexerRegistry;
-
-
         parent::__construct();
 
     }
@@ -147,15 +166,15 @@ class RegenerateCategoryUrlCommand extends Command
     protected function configure()
     {
         $this->setName('experius_reindexcatalogurlrewrites:categoryurls')
-            ->setDescription('Regenerate url for given categories')
+            ->setDescription('Regenerate url_rewrites for given categories / stores')
             ->addOption(
-                self::STORE_OPTION,'s',
+                self::STORE_OPTION, 's',
                 InputOption::VALUE_OPTIONAL,
-                'Use the specific Store View'
+                'Supply specific Store ID\'s (comma separated)'
             )->addOption(
-                self::CATEGORY_OPTION,'c',
+                self::CATEGORY_OPTION, 'c',
                 InputOption::VALUE_OPTIONAL,
-                'Use the specific Store View'
+                'Supply specific Category ID\'s (comma separated)'
             );
 
         return parent::configure();
@@ -167,31 +186,25 @@ class RegenerateCategoryUrlCommand extends Command
      */
     public function execute(InputInterface $input, OutputInterface $output)
     {
-
-        try {
-            $this->state->setAreaCode('frontend');
-        } catch (\Magento\Framework\Exception\LocalizedException $e) {
-            // intentionally left empty
-        }
-
         $this->output = $output;
+        $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_FRONTEND);
 
-        if($input->hasOption(self::CATEGORY_OPTION) && $input->getOption(self::CATEGORY_OPTION)){
-            $this->categoryIds = explode(',',$input->getOption(self::CATEGORY_OPTION));
+        if ($input->hasOption(self::CATEGORY_OPTION) && $input->getOption(self::CATEGORY_OPTION)) {
+            $this->categoryIds = explode(',', $input->getOption(self::CATEGORY_OPTION));
         }
 
-        if($input->hasOption(self::STORE_OPTION) && $input->getOption(self::STORE_OPTION)){
-            $this->storeIds = explode(',',$input->getOption(self::STORE_OPTION));
+        if ($input->hasOption(self::STORE_OPTION) && $input->getOption(self::STORE_OPTION)) {
+            $this->storeIds = explode(',', $input->getOption(self::STORE_OPTION));
         }
 
-        foreach($this->getStoreIds() as $storeId){
-
+        foreach ($this->getStoreIds() as $storeId) {
+            $this->output->writeln('Regenerating category url_rewrites for store_id <info>' . $storeId . '</info>');
             $this->appEmulation->startEnvironmentEmulation($storeId);
 
             $list = $this->getCategoryCollection($storeId);
-            $this->updateCatalogCategoryUrlPathCollection($list,$storeId);
-            $this->updateCatalogCategoryUrlRewriteCollection($list,$storeId);
-            $this->updateFlatCategoryIndex($list,$storeId);
+            $this->updateCatalogCategoryUrlPathCollection($list, $storeId);
+            $this->updateCatalogCategoryUrlRewriteCollection($list, $storeId);
+            $this->updateFlatCategoryIndex($list);
 
             $this->appEmulation->stopEnvironmentEmulation();
         }
@@ -201,7 +214,8 @@ class RegenerateCategoryUrlCommand extends Command
      * @param $collection
      * @param $storeId
      */
-    protected function updateCatalogCategoryUrlPathCollection($collection,$storeId){
+    protected function updateCatalogCategoryUrlPathCollection($collection, $storeId)
+    {
         foreach ($collection as $category) {
             $category->setStoreId($storeId);
             $this->updateUrlPathForCategory($category);
@@ -217,6 +231,8 @@ class RegenerateCategoryUrlCommand extends Command
         $category->unsUrlPath();
         $category->setUrlPath($this->categoryUrlPathGenerator->getUrlPath($category));
         $category->getResource()->saveAttribute($category, 'url_path');
+        $this->output->writeln('url_key updated for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
+        $this->output->writeln('  ' . $category->getUrlPath());
     }
 
 
@@ -224,24 +240,25 @@ class RegenerateCategoryUrlCommand extends Command
      * @param $collection
      * @param $storeId
      */
-    protected function updateCatalogCategoryUrlRewriteCollection($collection,$storeId){
-        foreach($collection as $category) {
+    protected function updateCatalogCategoryUrlRewriteCollection($collection, $storeId)
+    {
+        foreach ($collection as $category) {
             if ($category->getParentId() == Category::TREE_ROOT_ID) {
                 continue;
             }
 
-            $this->updateCatalogCategoryUrlRewrite($category,$storeId);
+            $this->updateCatalogCategoryUrlRewrite($category, $storeId);
 
 
-
-            if (!$this->categoryIds){
+            if (!$this->categoryIds) {
                 return;
             }
         }
     }
 
-    protected function updateFlatCategoryIndex($collection,$storeId) {
-        foreach($collection as $category) {
+    protected function updateFlatCategoryIndex($collection)
+    {
+        foreach ($collection as $category) {
             if ($category->getLevel() != 2 || !$category->hasChildren()) {
                 continue;
             }
@@ -249,10 +266,12 @@ class RegenerateCategoryUrlCommand extends Command
         }
     }
 
-    protected function reindex($category) {
+    protected function reindex($category)
+    {
         if ($this->flatState->isFlatEnabled()) {
             $flatIndexer = $this->indexerRegistry->get(CategoryIndexer::INDEXER_ID);
             if (!$flatIndexer->isScheduled()) {
+                $this->output->writeln('Flat index created for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
                 $flatIndexer->reindexRow($category->getId());
                 $flatIndexer->reindexList(explode(',', $category->getAllChildren()));
             }
@@ -263,33 +282,27 @@ class RegenerateCategoryUrlCommand extends Command
      * @param $category
      * @param $storeId
      */
-    protected function updateCatalogCategoryUrlRewrite($category,$storeId=Store::DEFAULT_STORE_ID){
-
-        $category->setStoreId($storeId);
-
-        $this->output->writeln(sprintf('Update Url For Category %s StoreId %s',$category->getName(),$storeId));
-
-        $saveRewritesHistory = $this->scopeConfig->isSetFlag(
-            UrlKeyRenderer::XML_PATH_SEO_SAVE_HISTORY,
-            ScopeInterface::SCOPE_STORE,
-            $category->getStoreId()
-        );
-
-        $category->setData('save_rewrites_history', $saveRewritesHistory);
-
-        $urlRewrites = array_merge(
-            $this->categoryUrlRewriteGenerator->generate($category, true),
-            $this->urlRewriteHandler->generateProductUrlRewrites($category)
-        );
-
-        //$this->urlRewriteHandler->deleteCategoryRewritesForChildren($category);
-
+    protected function updateCatalogCategoryUrlRewrite($category, $storeId = Store::DEFAULT_STORE_ID)
+    {
         try {
+            $category->setStoreId($storeId);
+
+            $saveRewritesHistory = $this->scopeConfig->isSetFlag(
+                UrlKeyRenderer::XML_PATH_SEO_SAVE_HISTORY,
+                ScopeInterface::SCOPE_STORE,
+                $category->getStoreId()
+            );
+
+            $category->setData('save_rewrites_history', $saveRewritesHistory);
+
+            $urlRewrites = array_merge(
+                $this->categoryUrlRewriteGenerator->generate($category, true),
+                $this->urlRewriteHandler->generateProductUrlRewrites($category)
+            );
+
             $this->urlPersist->replace($urlRewrites);
-        }
-        catch(\Exception $e) {
-            $this->output->writeln('<error>Duplicated url for '. $category->getId() .'</error>');
-            $this->output->writeln($e->getMessage());
+        } catch (\Exception $e) {
+            $this->output->writeln('<error>' . $e->getMessage() . '</error>');
         }
     }
 
@@ -298,33 +311,32 @@ class RegenerateCategoryUrlCommand extends Command
      * @param $storeId
      * @return mixed
      */
-    protected function getCategoryCollection($storeId){
-
+    protected function getCategoryCollection($storeId)
+    {
         $collection = $this->collection->create();
         $collection->setStoreId($storeId);
 
-        if(!empty($this->categoryIds)) {
+        if (!empty($this->categoryIds)) {
             $collection->addIdFilter($this->categoryIds);
         }
 
-        //$collection->addUrlRewriteToResult();
         $collection->addAttributeToSelect('name');
         $collection->addAttributeToSelect('url_key');
 
-        return  $collection->load();
+        return $collection->load();
     }
 
     /**
      * @return array
      */
-    protected function getStoreIds(){
-
-        if(!empty($this->storeIds)){
+    protected function getStoreIds()
+    {
+        if (!empty($this->storeIds)) {
             return $this->storeIds;
         }
 
         $storeIds = [];
-        foreach($this->storeManager->getStores() as $store){
+        foreach ($this->storeManager->getStores() as $store) {
             $storeIds[] = $store->getId();
         }
 
