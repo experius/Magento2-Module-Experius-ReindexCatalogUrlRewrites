@@ -137,7 +137,12 @@ class RegenerateProductUrlCommand extends Command
     public function execute(InputInterface $input, OutputInterface $output)
     {
         $this->output = $output;
-        $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
+
+        try {
+            $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
+        } catch (\Magento\Framework\Exception\LocalizedException $e) {
+            /** Try catch added to prevent "Area is already set" errors */
+        }
 
         if ($input->hasOption(self::PRODUCT_OPTION) && $input->getOption(self::PRODUCT_OPTION)) {
             $this->productIds = explode(',', $input->getOption(self::PRODUCT_OPTION));
@@ -201,6 +206,7 @@ class RegenerateProductUrlCommand extends Command
                 );
             }
         } catch (\Exception $e) {
+            $this->output->writeln('<error>An error occurred while updating url_rewrite for product ID: ' . $product->getId() . '</error>');
             $this->output->writeln('<error>' . $e->getMessage() . '</error>');
         }
     }

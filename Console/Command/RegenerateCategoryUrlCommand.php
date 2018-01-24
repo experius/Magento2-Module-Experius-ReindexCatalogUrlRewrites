@@ -187,7 +187,12 @@ class RegenerateCategoryUrlCommand extends Command
     public function execute(InputInterface $input, OutputInterface $output)
     {
         $this->output = $output;
-        $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_FRONTEND);
+
+        try {
+            $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_FRONTEND);
+        } catch (\Magento\Framework\Exception\LocalizedException $e) {
+            /** Try catch added to prevent "Area is already set" errors */
+        }
 
         if ($input->hasOption(self::CATEGORY_OPTION) && $input->getOption(self::CATEGORY_OPTION)) {
             $this->categoryIds = explode(',', $input->getOption(self::CATEGORY_OPTION));
@@ -271,9 +276,9 @@ class RegenerateCategoryUrlCommand extends Command
         if ($this->flatState->isFlatEnabled()) {
             $flatIndexer = $this->indexerRegistry->get(CategoryIndexer::INDEXER_ID);
             if (!$flatIndexer->isScheduled()) {
-                $this->output->writeln('Flat index created for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
                 $flatIndexer->reindexRow($category->getId());
                 $flatIndexer->reindexList(explode(',', $category->getAllChildren()));
+                $this->output->writeln('Flat index row updated for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
             }
         }
     }
@@ -302,6 +307,7 @@ class RegenerateCategoryUrlCommand extends Command
 
             $this->urlPersist->replace($urlRewrites);
         } catch (\Exception $e) {
+            $this->output->writeln('<error>An error occurred while updating url_rewrite for category ID: ' . $category->getId() . '</error>');
             $this->output->writeln('<error>' . $e->getMessage() . '</error>');
         }
     }
