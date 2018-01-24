@@ -277,8 +277,9 @@ class RegenerateCategoryUrlCommand extends Command
             $flatIndexer = $this->indexerRegistry->get(CategoryIndexer::INDEXER_ID);
             if (!$flatIndexer->isScheduled()) {
                 $flatIndexer->reindexRow($category->getId());
+                $this->output->writeln('Flat index row update for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
                 $flatIndexer->reindexList(explode(',', $category->getAllChildren()));
-                $this->output->writeln('Flat index row updated for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
+                $this->output->writeln('Flat index list update for children category ids = ' . $category->getAllChildren());
             }
         }
     }
