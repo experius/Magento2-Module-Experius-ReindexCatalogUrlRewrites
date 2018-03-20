@@ -9,8 +9,8 @@
     <type name="Magento\Framework\Console\CommandList">
         <arguments>
             <argument name="commands" xsi:type="array">
-                <item name="product_url_regeneration_command" xsi:type="object">Experius\ReindexCatalogUrlRewrites\Console\Command\RegenerateProductUrlCommand</item>
-                <item name="category_url_regeneration_command" xsi:type="object">Experius\ReindexCatalogUrlRewrites\Console\Command\RegenerateCategoryUrlCommand</item>
+                <item name="experius_product_url_regeneration_command" xsi:type="object">Experius\ReindexCatalogUrlRewrites\Console\Command\RegenerateProductUrlCommand</item>
+                <item name="experius_category_url_regeneration_command" xsi:type="object">Experius\ReindexCatalogUrlRewrites\Console\Command\RegenerateCategoryUrlCommand</item>
             </argument>
         </arguments>
     </type>
