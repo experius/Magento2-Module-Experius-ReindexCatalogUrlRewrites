@@ -134,11 +134,11 @@ class RegenerateCategoryUrlCommand extends Command
         \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $collection,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Framework\Event\Manager $eventManager,
-        \Magento\Store\Model\App\Emulation $appEmulation,
+        \Magento\Store\Model\App\Emulation\Proxy $appEmulation,
         \Magento\UrlRewrite\Model\UrlPersistInterface $urlPersist,
         \Magento\CatalogUrlRewrite\Model\CategoryUrlRewriteGenerator $categoryUrlRewriteGenerator,
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
-        \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler $urlRewriteHandler,
+        \Magento\CatalogUrlRewrite\Observer\UrlRewriteHandler\Proxy $urlRewriteHandler,
         CategoryUrlPathGenerator $categoryUrlPathGenerator,
         CategoryIndexer $flatState,
         \Magento\Framework\Indexer\IndexerRegistry $indexerRegistry

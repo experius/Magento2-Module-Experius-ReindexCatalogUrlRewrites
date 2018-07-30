@@ -94,11 +94,11 @@ class RegenerateProductUrlCommand extends Command
      */
     public function __construct(
         \Magento\Framework\App\State $state,
-        \Magento\Catalog\Model\ResourceModel\Product\CollectionFactory $collection,
-        \Magento\CatalogUrlRewrite\Model\ProductUrlRewriteGenerator $productUrlRewriteGenerator,
+        \Magento\Catalog\Model\ResourceModel\Product\CollectionFactory\Proxy $collection,
+        \Magento\CatalogUrlRewrite\Model\ProductUrlRewriteGenerator\Proxy $productUrlRewriteGenerator,
         \Magento\UrlRewrite\Model\UrlPersistInterface $urlPersist,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
-        \Magento\CatalogUrlRewrite\Model\ProductUrlPathGenerator $urlPathGenerator
+        \Magento\CatalogUrlRewrite\Model\ProductUrlPathGenerator\Proxy $urlPathGenerator
     ) {
         $this->state = $state;
         $this->collection = $collection;
