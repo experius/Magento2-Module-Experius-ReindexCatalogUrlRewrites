@@ -166,7 +166,7 @@ class RegenerateCategoryUrlCommand extends Command
     protected function configure()
     {
         $this->setName('experius_reindexcatalogurlrewrites:categoryurls')
-            ->setDescription('Regenerate url_rewrites for given categories / stores')
+            ->setDescription('Resets url_path and regenerates url_rewrites for given categories / stores')
             ->addOption(
                 self::STORE_OPTION, 's',
                 InputOption::VALUE_OPTIONAL,
@@ -233,10 +233,18 @@ class RegenerateCategoryUrlCommand extends Command
      */
     protected function updateUrlPathForCategory(Category $category)
     {
+        // Do not attempt to apply empty value's
+        if (!$this->categoryUrlPathGenerator->getUrlPath($category)
+            || $this->categoryUrlPathGenerator->getUrlPath($category) == ''
+        ) {
+            return;
+        }
+
         $category->unsUrlPath();
         $category->setUrlPath($this->categoryUrlPathGenerator->getUrlPath($category));
         $category->getResource()->saveAttribute($category, 'url_path');
-        $this->output->writeln('url_key updated for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
+        $this->output->writeln('url_key updated for category entity_id = ' . $category->getId()
+            . ' "' . $category->getName() . '"');
         $this->output->writeln('  ' . $category->getUrlPath());
     }
 
@@ -248,16 +256,17 @@ class RegenerateCategoryUrlCommand extends Command
     protected function updateCatalogCategoryUrlRewriteCollection($collection, $storeId)
     {
         foreach ($collection as $category) {
-            if ($category->getParentId() == Category::TREE_ROOT_ID) {
+            // Skip the root category and empty url_key's
+            if ($category->getParentId() == Category::TREE_ROOT_ID
+                || !$category->getData('url_key')
+                || $category->getData('url_key') == ''
+            ) {
                 continue;
             }
 
+            $this->output->writeln('Updating category url rewrite for category entity_id = ' . $category->getId()
+                . ' "' . $category->getName() . '"');
             $this->updateCatalogCategoryUrlRewrite($category, $storeId);
-
-
-            if (!$this->categoryIds) {
-                return;
-            }
         }
     }
 
@@ -277,9 +286,11 @@ class RegenerateCategoryUrlCommand extends Command
             $flatIndexer = $this->indexerRegistry->get(CategoryIndexer::INDEXER_ID);
             if (!$flatIndexer->isScheduled()) {
                 $flatIndexer->reindexRow($category->getId());
-                $this->output->writeln('Flat index row update for category entity_id = ' . $category->getId() . ' "' . $category->getName() . '"');
+                $this->output->writeln('Flat index row update for category entity_id = ' . $category->getId()
+                    . ' "' . $category->getName() . '"');
                 $flatIndexer->reindexList(explode(',', $category->getAllChildren()));
-                $this->output->writeln('Flat index list update for children category ids = ' . $category->getAllChildren());
+                $this->output->writeln('Flat index list update for children category ids = '
+                    . $category->getAllChildren());
             }
         }
     }
@@ -308,11 +319,11 @@ class RegenerateCategoryUrlCommand extends Command
 
             $this->urlPersist->replace($urlRewrites);
         } catch (\Exception $e) {
-            $this->output->writeln('<error>An error occurred while updating url_rewrite for category ID: ' . $category->getId() . '</error>');
+            $this->output->writeln('<error>An error occurred while updating url_rewrite for category ID: '
+                . $category->getId() . '</error>');
             $this->output->writeln('<error>' . $e->getMessage() . '</error>');
         }
     }
-
 
     /**
      * @param $storeId
